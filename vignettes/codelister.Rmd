@@ -1,0 +1,182 @@
+---
+title: "Codeliste viz for SPC .stat"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load tools of the trade
+
+We load some useful library to interact with data in XML format, and with SDMX in particular
+
+```{r}
+library(tidyverse)
+library(xml2)
+```
+
+For SDMX objext we are going to use a dedicated library
+
+And for the plotting we can use an R library that creates Upset plots
+
+```{r}
+library(rsdmx)
+```
+
+```{r}
+library(ComplexUpset)
+library(ggplot2)
+```
+
+# Getting the data
+
+## Get all codelist links
+
+The main end point for the production PDH.stat rest request is https://stats-sdmx-disseminate.pacificdata.org/rest
+And the codelist are served at codelist/all/all/latest?detail=allstubs
+
+```{r}
+base_url <- "https://stats-sdmx-disseminate.pacificdata.org/rest/"
+query_all_cls <- "codelist/all/all/latest?detail=allstubs"
+```
+
+We get an xml document of all links to  codelists.
+Unfortunately rSDMX does not play well with that kind of SDMX message.
+Hence, we need to wrangle it by hand.
+
+```{r}
+all_cls_xml <- base_url |>
+    paste0(query_all_cls) |>
+    read_xml() |>
+    xml_child(2) |>
+    xml_child(1) |>
+    xml_children()
+```
+
+Once we have a good list of all codelists, we flatten that to a dataframe
+
+```{r}
+dfo <- tibble(
+    cid = all_cls_xml |> xml_attr("id"),
+    name = all_cls_xml |> xml_text(),
+    curl = all_cls_xml |> xml_attr("structureURL")
+    ) 
+```
+
+## Get codes from codelist links
+
+The next step will take all the url and retrieve the codes.
+Thanks to rSDMX it's a one-liner.
+
+```{r}
+dfo <- dfo |>
+    mutate(cl = map(curl, \(url) url %>% readSDMX %>% as_tibble))
+```
+
+## Write table to file
+
+To write the codes to a csv we need to first unnest the tibble we created above.
+
+```{r}
+dfo <- dfo |>
+    unnest_wider(cl) |>
+    unnest_longer(id:description.en, keep_empty = TRUE) |>
+    relocate(description.en, .after = name.en)
+```
+
+And we are ready to write.
+
+```{r}
+write_csv(dfo, paste0("all_codelists_",today(),".csv"))
+```
+
+Count indicators
+
+```{r}
+n_indicators <- dfo |>
+    filter(cid |> str_detect("INDICATOR")) |>
+    count() |>
+    transmute(indicator_count = n) |>
+    mutate(date = today())
+```
+
+and write to file
+
+```{r}
+if(file.exists("indicator_count.csv")) {
+    write_csv(n_indicators, "indicator_count.csv", append = TRUE)
+} else {
+    write_csv(n_indicators, "indicator_count.csv", append = FALSE)
+}
+```
+
+```{r}
+dfo |>
+    filter(cid |> str_detect("INDICATOR")) |>
+    group_by(cid) |>
+    count(sort = TRUE) |>
+    transmute(indicator_count = n) |>
+    mutate(date = today())
+```
+
+# Visualize overlaps
+
+We can do some bipartite graph magic to visualize the overlaps.
+This is a nice trick I learnt from [Bob Rudis](https://rud.is/books/21-recipes/visualizing-intersecting-follower-sets-with-upsetr.html)
+and I updated a bit.
+
+## Prepare data for viz
+
+We first produce de-duplicated lists of all codes and codelists ids
+
+```{r}
+cl_c <- dfo |> select(cid,id)
+unique_codes <- unique(cl_c$id)
+unique_codelists <- unique(cl_c$cid)
+```
+
+Then for each code, we produce a dummy indicator of whether they are contained in a codelist or not and turn that into a tibble
+```{r}
+binaries <- unique_codelists |>
+  map_dfc(
+    \(this_codelist)
+    ifelse(unique_codes %in% filter(cl_c, cid == this_codelist)$id, 1, 0) |> as_tibble()
+    );
+names(binaries) <- unique_codelists
+```
+
+We also do the transpose operation, creating a tibble of which codelist contains a certain code.
+```{r}
+rev_binaries <- unique_codes |>
+  map_dfc(
+    \(this_code)
+    ifelse(unique_codelists %in% filter(cl_c, id == this_code)$cid, 1, 0) |> as_tibble()
+    );
+names(rev_binaries) <- unique_codes
+```
+
+## Plot the intersection
+
+Plotting is also a one liner, but it might need some fine tuning for the graphical parameters
+```{r}
+codelist_overlap <- upset(binaries,cids, min_degree = 2, width_ratio = 0.2, height_ratio = 1.4, n_intersections=30)
+codelist_overlap
+```
+
+```{r}
+upset(rev_binaries,unique_codes, width_ratio = 0.2, height_ratio = 1.4, n_intersections=2)
+```
+
+
+```{r}
+png(file="codelist_overlap.png", width = 1200, height = 800, points = 60) # or other device
+codelist_overlap
+dev.off()
+```
+
+## Get most common codes
+
+```{r}
+count_codes <- dfo |> count(id) |> arrange(-n)
+```
