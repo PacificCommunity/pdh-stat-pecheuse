@@ -1,0 +1,99 @@
+---
+title: "Codeliste viz for SPC .stat"
+output: github_document
+---
+
+link to all codelists <- https://stats-sdmx-disseminate.pacificdata.org/rest/codelist/all/all/latest?detail=allstubs
+
+one example is here <- https://stats-sdmx-disseminate.pacificdata.org/rest/codelist/SPC/CL_CROPS_INDICATORS/1.0
+
+```{r}
+base_url <- "https://stats-sdmx-disseminate.pacificdata.org/rest/"
+all_cls <- "codelist/all/all/latest?detail=allstubs"
+```
+
+for the one example
+
+```{r}
+crops_indicators_cl <- "codelist/SPC/CL_CROPS_INDICATORS/1.0"
+```
+
+# load weaponry
+
+```{r}
+library(tidyverse)
+library(xml2)
+library(rsdmx)
+```
+
+## gathering one codelist
+
+```{r}
+get_codelist <- function(url) {
+   url |>
+    readSDMX() |>
+    as_tibble()
+}
+
+base_url |>
+    paste0(crops_indicators_cl) |>
+    get_codelist()
+```
+
+
+we want to get all the links!
+
+```{r}
+get_all_codelists <- function(url) {
+   url |>
+    read_xml() |>
+    xml_child(2) |>
+    xml_child(1) |>
+    xml_children()
+}
+
+all_codelists <- base_url |>
+    paste0(all_cls) |>
+    get_all_codelists()
+```
+
+```{r}
+build_CL_table <- function(all_codelists_xml) {
+
+   table <- tibble(
+    Cid = all_codelists_xml  |>
+        xml_attr("id"),
+    Curl = all_codelists_xml |>
+        xml_attr("structureURL"),
+    Cname = all_codelists_xml  |>
+        xml_text()
+    ) |>
+    mutate(Codes = map(Curl, get_codelist))  |>
+    unnest_wider(Codes) |>
+    unnest_longer(id:description.en, keep_empty = TRUE)
+
+    return(table)
+}
+
+Codelists <- all_codelists |> build_CL_table()
+```
+
+Wrap everything up in a function
+
+```{r}
+base_url <- "https://stats-sdmx-disseminate.pacificdata.org/rest/"
+all_cls <- "codelist/all/all/latest?detail=allstubs"
+
+get_codelist_table <- function(url) {
+   table <- url |>
+   get_all_codelists() |>
+   build_CL_table()
+
+   return(table)
+}
+```
+
+```{r}
+Codelists |>
+    filter(Cid == "CL_COM_OBS_STATUS")
+```
