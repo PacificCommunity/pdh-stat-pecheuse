@@ -27,3 +27,17 @@ cdt <- as_tibble(country_data)
 
 
 ````
+
+
+# where things are
+
+dataflow:
+- url like this https://stats-sdmx-disseminate.pacificdata.org/rest/dataflow/SPC/DF_FOOD_SECURITY_PHC_2/1.0?references=all
+- contains a lot of info, there nested: structure > structures > structure:codelists
+
+datastructures:
+- url like this https://stats-sdmx-disseminate.pacificdata.org/rest/datastructure/SPC/DSD_ADBKI/1.0
+- contains name to all codelists
+
+codelist:
+- url like this https://stats-sdmx-disseminate.pacificdata.org/rest/codelist/SPC/CL_CROPS_INDICATORS/1.0
