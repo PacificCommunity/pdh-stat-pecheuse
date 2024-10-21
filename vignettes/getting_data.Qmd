@@ -1,0 +1,21 @@
+---
+title: "Getting pacific data in R"
+---
+
+
+# Getting all data for a country
+
+```{r}
+library(rsdmx)
+
+
+
+```
+
+# Getting Tuna data
+
+```{r}
+
+
+
+````
