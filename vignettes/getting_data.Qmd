@@ -9,27 +9,59 @@ title: "Getting pacific data in R"
 library(rsdmx)
 library(dplyr)
 library(validate)
-country_data <- readSDMX("https://stats-sdmx-disseminate.pacificdata.org/rest/data/SPC,DF_FOOD_SECURITY_PHC_1,1.0/A..._T._T._T._T.CROP+LIVE+FISH+HAND+_T?startPeriod=2017&endPeriod=2020&dimensionAtObservation=AllDimensions")
+vanu_age_sex <- readSDMX("https://stats-sdmx-disseminate.pacificdata.org/rest/data/SPC,DF_FOOD_SECURITY_PHC_1,1.0/A..._T._T._T._T.CROP+LIVE+FISH+HAND+_T?startPeriod=2017&endPeriod=2020&dimensionAtObservation=AllDimensions")
+vanu_sdg_2_hunger <- readSDMX("https://stats-sdmx-disseminate.pacificdata.org/rest/data/SPC,DF_SDG_02,3.0/A..........?startPeriod=2016&endPeriod=2023&dimensionAtObservation=AllDimensions")
 
 # Need a way to get metadata using "Structure Query"
 # Structure query url: https://stats-sdmx-disseminate.pacificdata.org/rest/dataflow/SPC/DF_FOOD_SECURITY_PHC_1/1.0?references=all
 # Use {validate}?
-country_data_codes <- validate::sdmx_endpoint
-cdt <- as_tibble(country_data)
 
+list(vanu_age_sex, vanu_sdg_2_hunger) |>
+  lapply(as_tibble) |>
+  bind_rows() |>
+  pivot_wider(
+    names_from = INDICATOR,
+    values_from = obsValue
+  )
 
 ```
 
+Challenges working with this data:
+
+  - Column names are not easy to interpret
+  - Columns like `GEO_PICT`, and `FREQ` are codes that map to labels and levels
+    that are not fetched. These live in the code lists.
+  -   The code lists are fetched via different method involving some intense XML
+      munging detailed in: "./discovery/live-coding-sessiong.Rmd"
+
+Options for unifying the metadata in the code lists with the actual data were discussed:
+
+- Create a complex object similar to `S4Vecotors::DataFrame` from bioConductor
+  which keeps a metadata data.frame along with the main data.
+
+- Create column  of `vctrs` classes that have both human readable and
+  machine-readable form. The user would specify `as_human()` or `as_machine()` for
+  example to oberate on a specific version The user would specify `as_human()` or
+  `as_machine()` for example to oberate on a specific version.
+
+- Create a function to convert from machine readable to human readable form of an entire data frame.
+
+Prior art also exists in the `hmisc` package to create column labels.
+
+The current thinking is that explicit conversion to human readable form via a function is a way forward.
+
 # Getting Tuna data
+
+As an example of getting a single measure across all countries / geographies.
 
 ```{r}
 
 
 
-````
+```
 
 
-# where things are
+# Where things are
 
 dataflow:
 - url like this https://stats-sdmx-disseminate.pacificdata.org/rest/dataflow/SPC/DF_FOOD_SECURITY_PHC_2/1.0?references=all
