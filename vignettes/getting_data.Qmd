@@ -7,7 +7,15 @@ title: "Getting pacific data in R"
 
 ```{r}
 library(rsdmx)
+library(dplyr)
+library(validate)
+country_data <- readSDMX("https://stats-sdmx-disseminate.pacificdata.org/rest/data/SPC,DF_FOOD_SECURITY_PHC_1,1.0/A..._T._T._T._T.CROP+LIVE+FISH+HAND+_T?startPeriod=2017&endPeriod=2020&dimensionAtObservation=AllDimensions")
 
+# Need a way to get metadata using "Structure Query"
+# Structure query url: https://stats-sdmx-disseminate.pacificdata.org/rest/dataflow/SPC/DF_FOOD_SECURITY_PHC_1/1.0?references=all
+# Use {validate}?
+country_data_codes <- validate::sdmx_endpoint
+cdt <- as_tibble(country_data)
 
 
 ```
